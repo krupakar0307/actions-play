@@ -27,6 +27,11 @@ jobs:
 
         - name: Check PR Workflows
           run: |
+            if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+              echo "⚠️ This workflow only triggers PR workflows from main branch. Skipping..."
+              exit 0
+            fi
+
             echo "🔍 Fetching the latest 5 open PRs..."
             PRS=$(gh pr list --state open --limit 5 --json number --jq '.[].number')
   
