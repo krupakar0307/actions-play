@@ -38,12 +38,24 @@ jobs:
             FAILED=0
             for PR in $PRS; do
               echo "🚀 Fetching latest workflow run for PR #$PR..."
-              RUN_ID=$(gh run list --branch refs/pull/$PR/head --limit 1 --json databaseId --jq '.[0].databaseId')
+              
+              # Find the latest workflow run for the PR
+              RUN_ID=$(gh run list --json databaseId,headSha,conclusion --jq ".[] | select(.conclusion != null) | .databaseId" | head -n 1)
   
               if [[ -z "$RUN_ID" ]]; then
                 echo "⚠️ No previous workflow found for PR #$PR. Skipping..."
                 continue
               fi
+  
+              # Fetch the commit SHA of the workflow run
+              COMMIT_SHA=$(gh run view $RUN_ID --json headSha --jq '.headSha')
+              if [[ -z "$COMMIT_SHA" ]]; then
+                echo "⚠️ Could not fetch commit SHA for PR #$PR. Skipping commit message logging..."
+                continue
+              fi
+  
+              # Fetch the commit message of the failed workflow
+              COMMIT_MESSAGE=$(gh api repos/:owner/:repo/commits/$COMMIT_SHA --jq '.commit.message')
   
               echo "🔄 Re-running workflow for PR #$PR (Run ID: $RUN_ID)..."
               gh run rerun $RUN_ID
@@ -51,10 +63,12 @@ jobs:
               sleep 10  # Give some time for workflow to start
   
               echo "🔍 Checking workflow status for PR #$PR..."
-              PR_STATUS=$(gh run list --branch refs/pull/$PR/head --limit 1 --json conclusion --jq '.[0].conclusion')
+              PR_STATUS=$(gh run view $RUN_ID --json conclusion --jq '.conclusion')
   
               if [[ "$PR_STATUS" == "failure" || "$PR_STATUS" == "cancelled" ]]; then
                 echo "❌ PR #$PR workflow failed!"
+                echo "📝 Commit that caused failure: $COMMIT_SHA"
+                echo "📜 Commit message: $COMMIT_MESSAGE"
                 FAILED=1
               else
                 echo "✅ PR #$PR workflow passed!"
