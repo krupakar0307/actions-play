@@ -24,5 +24,41 @@ jobs:
         
         - name: Deploy to staging
           run: echo "Deploying to staging"
-
-       
+        - name: Check PR Workflows
+          run: |
+            echo "🔍 Fetching the latest 5 open PRs..."
+            PRS=$(gh pr list --state open --limit 5 --json number --jq '.[].number')
+  
+            if [[ -z "$PRS" ]]; then
+              echo "✅ No open PRs found. Skipping..."
+              exit 0
+            fi
+  
+            FAILED=0
+            for PR in $PRS; do
+              echo "🚀 Triggering workflow for PR #$PR..."
+              gh workflow run pr-check.yml --ref refs/pull/$PR/head
+              
+              sleep 10  # Give some time for workflow to start
+  
+              echo "🔍 Checking workflow status for PR #$PR..."
+              PR_STATUS=$(gh run list --branch refs/pull/$PR/head --limit 1 --json conclusion --jq '.[0].conclusion')
+  
+              if [[ "$PR_STATUS" == "failure" || "$PR_STATUS" == "cancelled" ]]; then
+                echo "❌ PR #$PR workflow failed!"
+                FAILED=1
+              else
+                echo "✅ PR #$PR workflow passed!"
+              fi
+            done
+  
+            if [[ "$FAILED" -eq 1 ]]; then
+              echo "❌ One or more PR workflows failed. Failing main branch workflow."
+              exit 1
+            else
+              echo "✅ All checked PR workflows are successful!"
+            fi
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+         
