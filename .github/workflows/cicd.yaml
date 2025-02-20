@@ -21,3 +21,13 @@ jobs:
 
         - name: Run tests
           run: echo "Running tests"
+        
+        - name: Deploy to staging
+          run: echo "Deploying to staging"
+
+        - name: check all open PR and trigger the workflow
+          run: |
+            gh pr list --state open --json number | jq -r '.[].number' | while read pr; do
+            gh workflow run cicd.yaml --ref refs/pull/$pr/head
+            done
+            echo "Triggered workflow on all open PRs"
