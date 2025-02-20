@@ -24,6 +24,7 @@ jobs:
         
         - name: Deploy to staging
           run: echo "Deploying to staging"
+
         - name: Check PR Workflows
           run: |
             echo "🔍 Fetching the latest 5 open PRs..."
@@ -36,9 +37,17 @@ jobs:
   
             FAILED=0
             for PR in $PRS; do
-              echo "🚀 Triggering workflow for PR #$PR..."
-              gh workflow run pr-check.yml --ref refs/pull/$PR/head
-              
+              echo "🚀 Fetching latest workflow run for PR #$PR..."
+              RUN_ID=$(gh run list --branch refs/pull/$PR/head --limit 1 --json databaseId --jq '.[0].databaseId')
+  
+              if [[ -z "$RUN_ID" ]]; then
+                echo "⚠️ No previous workflow found for PR #$PR. Skipping..."
+                continue
+              fi
+  
+              echo "🔄 Re-running workflow for PR #$PR (Run ID: $RUN_ID)..."
+              gh run rerun $RUN_ID
+  
               sleep 10  # Give some time for workflow to start
   
               echo "🔍 Checking workflow status for PR #$PR..."
@@ -60,5 +69,3 @@ jobs:
             fi
           env:
             GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
-         
